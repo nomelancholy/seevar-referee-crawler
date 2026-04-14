@@ -3,6 +3,17 @@ import { api } from './api-client';
 import { MatchStatus, RefereeRole } from './types';
 import { extractMatchDataWithAI } from './gemini';
 
+/**
+ * Returns a KST-formatted timestamp string for logging.
+ * Example: "2026-04-15 02:22:04 KST"
+ */
+export function nowKST(): string {
+  return new Date().toLocaleString('sv-SE', {
+    timeZone: 'Asia/Seoul',
+    hour12: false,
+  }).replace('T', ' ') + ' KST';
+}
+
 export interface MatchInfo {
   year: string;
   leagueId: string;
@@ -44,7 +55,7 @@ export async function getTodayMatches(): Promise<MatchInfo[]> {
   const page = await context.newPage();
 
   try {
-    console.log('Navigating to K-League schedule page...');
+    console.log(`[${nowKST()}] Navigating to K-League schedule page...`);
     await page.goto('https://www.kleague.com/schedule.do', { waitUntil: 'networkidle' });
 
     const todayBtn = page.locator('button:has-text("TODAY")');
@@ -53,9 +64,10 @@ export async function getTodayMatches(): Promise<MatchInfo[]> {
       await page.waitForLoadState('networkidle');
     }
 
-    const now = new Date();
-    const todayStr = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getDate()).padStart(2, '0')}`;
-    console.log(`Checking matches for ${todayStr}...`);
+    // KST 기준 오늘 날짜 계산 (서버 타임존이 KST로 설정된 경우)
+    const nowKstDate = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+    const todayStr = `${nowKstDate.getFullYear()}.${String(nowKstDate.getMonth() + 1).padStart(2, '0')}.${String(nowKstDate.getDate()).padStart(2, '0')}`;
+    console.log(`[${nowKST()}] Checking matches for ${todayStr}...`);
 
     const matches: MatchInfo[] = [];
     
@@ -64,6 +76,7 @@ export async function getTodayMatches(): Promise<MatchInfo[]> {
     const rowCount = await rows.count();
 
     let lastRoundNumber = 0;
+    let lastDateStr = '';
 
     for (let i = 0; i < rowCount; i++) {
       const row = rows.nth(i);
@@ -71,9 +84,15 @@ export async function getTodayMatches(): Promise<MatchInfo[]> {
       const dateCell = row.locator('td.date');
       if (await dateCell.isVisible()) {
         const dateText = await dateCell.innerText();
+        // 날짜 파싱: "2026.04.15" 형태
+        const dateMatch = dateText.match(/(\d{4}\.\d{2}\.\d{2})/);
+        if (dateMatch) lastDateStr = dateMatch[1];
         const roundMatch = dateText.match(/R(\d+)/);
         if (roundMatch) lastRoundNumber = parseInt(roundMatch[1]);
       }
+
+      // 오늘 날짜의 경기만 수집
+      if (lastDateStr !== todayStr) continue;
 
       const matchCenterLink = row.locator('a:has-text("Match Center")');
       if (await matchCenterLink.isVisible()) {
@@ -85,7 +104,8 @@ export async function getTodayMatches(): Promise<MatchInfo[]> {
         if (href) {
           const urlParams = new URLSearchParams(href.split('?')[1]);
           const timeParts = timeText.split(':').map(Number);
-          const startTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), timeParts[0], timeParts[1]);
+          // KST 기준 경기 시작 시간 (로컬 타임이 KST)
+          const startTime = new Date(nowKstDate.getFullYear(), nowKstDate.getMonth(), nowKstDate.getDate(), timeParts[0], timeParts[1]);
 
           matches.push({
             year: urlParams.get('year') || '',
@@ -101,6 +121,7 @@ export async function getTodayMatches(): Promise<MatchInfo[]> {
       }
     }
 
+    console.log(`[${nowKST()}] Found ${matches.length} matches for ${todayStr}.`);
     return matches;
   } finally {
     await browser.close();

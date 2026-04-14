@@ -354,3 +354,71 @@ module.exports = {
 
 > `logs/` 디렉토리가 없으면 PM2 시작 전에 미리 생성해두세요:  
 > `mkdir -p ~/seevar-referee-crawler/logs`
+
+---
+
+## 6단계 — 라운드 포커스 수동 확인 (강제 동기화)
+
+cron이 이미 지났거나 `Found 0 matches` 로그가 찍혀 포커스가 바뀌지 않았을 때, **오늘 경기 동기화를 즉시 강제 실행**할 수 있습니다.
+
+### 방법 1: npm 스크립트 (권장)
+
+서버에 SSH 접속 후:
+
+```bash
+cd ~/seevar-referee-crawler
+npm run sync:today
+```
+
+`src/scripts/force-sync-today.ts`를 실행합니다.  
+오늘 날짜(KST 기준) 경기를 크롤링하여 **라운드 포커스 설정 + 경기 일정 DB 동기화**를 즉시 처리합니다.
+
+**정상 실행 시 출력 예시:**
+
+```
+[2026-04-15 09:00:00 KST] ===== 오늘 경기 강제 동기화 시작 =====
+[2026-04-15 09:00:01 KST] K-League 스케줄 페이지 크롤링 중...
+[2026-04-15 09:00:06 KST] ✅ 오늘 경기 3개 발견:
+  [1] R8 | 전북 vs 서울 | leagueId=1 | gameId=41
+  [2] R8 | 수원 vs 포항 | leagueId=1 | gameId=42
+  [3] R8 | 인천 vs 울산 | leagueId=1 | gameId=43
+
+[2026-04-15 09:00:06 KST] syncRoundAndMatch() 실행 중...
+[2026-04-15 09:00:07 KST] --- 전북 vs 서울 (Round 8) ---
+Setting Round 8 as focused round for k-league-1
+[2026-04-15 09:00:08 KST] 완료: 전북 vs 서울
+...
+[2026-04-15 09:00:12 KST] ===== 강제 동기화 완료 =====
+  → seevar 관리 페이지에서 해당 라운드가 포커스로 설정됐는지 확인하세요.
+```
+
+> **경기가 0개로 나오는 경우**: K-League 사이트의 TODAY 필터가 제대로 동작했는지 확인.  
+> `kleague.com/schedule.do` 를 직접 접속해서 날짜와 경기 목록 확인.
+
+### 방법 2: dailyTask() 전체 재실행 (PM2 재시작)
+
+cron을 기다리지 않고 PM2 프로세스를 재시작하면 `main.ts` 시작 직후 `dailyTask()`가 즉시 1회 실행됩니다.
+
+```bash
+# PM2 재시작 → dailyTask() 즉시 실행됨
+pm2 restart seevar-crawler
+
+# 로그로 결과 확인
+pm2 logs seevar-crawler --lines 50
+```
+
+> **주의**: 재시작 시 기존의 `setTimeout` 예약 (심판 동기화, 결과 동기화) 이 모두 초기화됩니다.  
+> 경기가 아직 시작 전이라면 재시작 후 자동으로 재스케줄됩니다.
+
+### 방법 3: 특정 경기만 지정해서 테스트
+
+K-League match 페이지 URL에서 파라미터를 직접 확인한 뒤 `src/scripts/test-single-match.ts`의 `sampleMatch` 값을 수정하고 실행:
+
+```bash
+# URL 예시: kleague.com/match.do?year=2026&leagueId=1&gameId=41&meetSeq=1
+# ↓ 위 파라미터를 그대로 입력
+
+npm run test:match
+```
+
+`test-single-match.ts`는 `syncRoundAndMatch` + `syncRefereeInfo` + `syncMatchResult`를 순서대로 모두 실행합니다.

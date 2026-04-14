@@ -1,5 +1,5 @@
 import cron from 'node-cron';
-import { getTodayMatches, syncRefereeInfo, syncMatchResult, MatchInfo } from './lib/scraper';
+import { getTodayMatches, syncRefereeInfo, syncMatchResult, nowKST, MatchInfo } from './lib/scraper';
 import { syncRoundAndMatch } from './lib/round-service';
 
 async function scheduleMatchTasks(match: MatchInfo) {
@@ -12,14 +12,14 @@ async function scheduleMatchTasks(match: MatchInfo) {
   const msUntilRefereeSync = refereeSyncTime.getTime() - now.getTime();
 
   if (msUntilRefereeSync > 0) {
-    console.log(`Scheduling referee sync for ${match.homeTeamName} at ${refereeSyncTime.toISOString()}`);
+    console.log(`[${nowKST()}] Scheduling referee sync for ${match.homeTeamName} at ${refereeSyncTime.toLocaleString('sv-SE', { timeZone: 'Asia/Seoul' }).replace('T', ' ')} KST`);
     setTimeout(async () => {
-      console.log(`Starting referee sync for ${match.homeTeamName}...`);
+      console.log(`[${nowKST()}] Starting referee sync for ${match.homeTeamName}...`);
       await syncRefereeInfo(match);
     }, msUntilRefereeSync);
   } else {
     // If we're already within 70 mins, run it now
-    console.log(`Already within referee sync window for ${match.homeTeamName}. Running now.`);
+    console.log(`[${nowKST()}] Already within referee sync window for ${match.homeTeamName}. Running now.`);
     await syncRefereeInfo(match);
   }
 
@@ -28,23 +28,23 @@ async function scheduleMatchTasks(match: MatchInfo) {
   const msUntilResultSync = resultSyncTime.getTime() - now.getTime();
 
   if (msUntilResultSync > 0) {
-    console.log(`Scheduling result sync for ${match.homeTeamName} at ${resultSyncTime.toISOString()}`);
+    console.log(`[${nowKST()}] Scheduling result sync for ${match.homeTeamName} at ${resultSyncTime.toLocaleString('sv-SE', { timeZone: 'Asia/Seoul' }).replace('T', ' ')} KST`);
     setTimeout(async () => {
-      console.log(`Starting result sync for ${match.homeTeamName}...`);
+      console.log(`[${nowKST()}] Starting result sync for ${match.homeTeamName}...`);
       await syncMatchResult(match);
     }, msUntilResultSync);
   } else {
     // If we missed the window, still try once
-    console.log(`Kickoff + 127m has already passed for ${match.homeTeamName}. Running once now.`);
+    console.log(`[${nowKST()}] Kickoff + 127m has already passed for ${match.homeTeamName}. Running once now.`);
     await syncMatchResult(match);
   }
 }
 
 async function dailyTask() {
-  console.log(`Running daily match check at ${new Date().toISOString()}`);
+  console.log(`[${nowKST()}] Running daily match check...`);
   try {
     const matches = await getTodayMatches();
-    console.log(`Found ${matches.length} matches today.`);
+    // scraper 내부에서 이미 상세 로그 출력
     
     for (const match of matches) {
       // Step 2: Sync Round Focus and Match Schedule
@@ -54,7 +54,7 @@ async function dailyTask() {
       await scheduleMatchTasks(match);
     }
   } catch (error) {
-    console.error('Error in daily task:', error);
+    console.error(`[${nowKST()}] Error in daily task:`, error);
   }
 }
 
