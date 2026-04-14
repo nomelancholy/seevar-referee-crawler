@@ -1,0 +1,40 @@
+name: Deploy Crawler to DigitalOcean
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          passphrase: ${{ secrets.SSH_PASSPHRASE }}
+          command_timeout: 10m
+          script: |
+            cd ~/seevar-referee-crawler
+
+            # 1. 최신 코드 pull
+            git pull origin main
+
+            # 2. .env 재생성
+            printf "API_BASE_URL=https://seevar.online\nCRAWLER_API_KEY=${{ secrets.CRAWLER_API_KEY }}\nGEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}\n" > .env
+
+            # 3. 패키지 설치
+            npm ci
+
+            # 4. Playwright 브라우저 최신화
+            npx playwright install chromium
+
+            # 5. PM2 프로세스 재시작
+            pm2 reload ecosystem.config.js --update-env
+
+            echo "✅ Crawler deployed successfully"

@@ -1,0 +1,149 @@
+{
+    "teams": [
+        {
+            "name": "울산 HD FC",
+            "slug": "ulsan_hd_fc",
+            "emblemPath": "/assets/emblem/2026/kleague1/ulsan_hd_fc.svg"
+        },
+        {
+            "name": "강원 FC",
+            "slug": "gangwon_fc",
+            "emblemPath": "/assets/emblem/2026/kleague1/gangwon_fc.svg"
+        },
+        {
+            "name": "FC 서울",
+            "slug": "fc_seoul",
+            "emblemPath": "/assets/emblem/2026/kleague1/fc_seoul.svg"
+        },
+        {
+            "name": "포항 스틸러스",
+            "slug": "pohang_steelers",
+            "emblemPath": "/assets/emblem/2026/kleague1/pohang_steelers.svg"
+        },
+        {
+            "name": "전북 현대 모터스",
+            "slug": "jeonbuk_hyundai_motors",
+            "emblemPath": "/assets/emblem/2026/kleague1/jeonbuk_hyundai_motors.svg"
+        },
+        {
+            "name": "대전 하나 시티즌",
+            "slug": "daejeon_hana_citizen",
+            "emblemPath": "/assets/emblem/2026/kleague1/daejeon_hana_citizen.svg"
+        },
+        {
+            "name": "김천 상무 FC",
+            "slug": "gimcheon_sangmu_fc",
+            "emblemPath": "/assets/emblem/2026/kleague1/gimcheon_sangmu_fc.svg"
+        },
+        {
+            "name": "제주 SK FC",
+            "slug": "jeju_sk_fc",
+            "emblemPath": "/assets/emblem/2026/kleague1/jeju_sk_fc.svg"
+        },
+        {
+            "name": "인천 유나이티드",
+            "slug": "incheon_united_fc",
+            "emblemPath": "/assets/emblem/2026/kleague1/incheon_united_fc.svg"
+        },
+        {
+            "name": "광주 FC",
+            "slug": "gwangju_fc",
+            "emblemPath": "/assets/emblem/2026/kleague1/gwangju_fc.svg"
+        },
+        {
+            "name": "FC 안양",
+            "slug": "fc_anyang",
+            "emblemPath": "/assets/emblem/2026/kleague1/fc_anyang.svg"
+        },
+        {
+            "name": "부천 FC 1995",
+            "slug": "bucheon_fc_1995",
+            "emblemPath": "/assets/emblem/2026/kleague1/bucheon_fc_1995.svg"
+        },
+        {
+            "name": "수원 삼성 블루윙즈",
+            "slug": "suwon_samsung_bluewings",
+            "emblemPath": "/assets/emblem/2026/kleague2/suwon_samsung_bluewings.svg"
+        },
+        {
+            "name": "대구 FC",
+            "slug": "daegu_fc",
+            "emblemPath": "/assets/emblem/2026/kleague2/daegu_fc.svg"
+        },
+        {
+            "name": "수원 FC",
+            "slug": "suwon_fc",
+            "emblemPath": "/assets/emblem/2026/kleague2/suwon_fc.svg"
+        },
+        {
+            "name": "서울 이랜드 FC",
+            "slug": "seoul_e_land_fc",
+            "emblemPath": "/assets/emblem/2026/kleague2/seoul_e_land_fc.svg"
+        },
+        {
+            "name": "성남 FC",
+            "slug": "seongname_fc",
+            "emblemPath": "/assets/emblem/2026/kleague2/seongname_fc.svg"
+        },
+        {
+            "name": "전남 드래곤즈",
+            "slug": "jeonnam_dragons",
+            "emblemPath": "/assets/emblem/2026/kleague2/jeonnam_dragons.svg"
+        },
+        {
+            "name": "김포 FC",
+            "slug": "gimpo_fc",
+            "emblemPath": "/assets/emblem/2026/kleague2/gimpo_fc.svg"
+        },
+        {
+            "name": "부산 아이파크",
+            "slug": "busan_ipark",
+            "emblemPath": "/assets/emblem/2026/kleague2/busan_ipark.svg"
+        },
+        {
+            "name": "충남 아산 FC",
+            "slug": "chungnam_asan_fc",
+            "emblemPath": "/assets/emblem/2026/kleague2/chungnam_asan_fc.svg"
+        },
+        {
+            "name": "화성 FC",
+            "slug": "hwaseong_fc",
+            "emblemPath": "/assets/emblem/2026/kleague2/hwaseong_fc.svg"
+        },
+        {
+            "name": "경남 FC",
+            "slug": "gyeongnam_fc",
+            "emblemPath": "/assets/emblem/2026/kleague2/gyeongnam_fc.svg"
+        },
+        {
+            "name": "충북 청주 FC",
+            "slug": "cheongju_fc",
+            "emblemPath": "/assets/emblem/2026/kleague2/cheongju_fc.svg"
+        },
+        {
+            "name": "천안 시티 FC",
+            "slug": "cheonan_city_fc",
+            "emblemPath": "/assets/emblem/2026/kleague2/cheonan_city_fc.svg"
+        },
+        {
+            "name": "안산 그리너스 FC",
+            "slug": "ansan_greeners_fc",
+            "emblemPath": "/assets/emblem/2026/kleague2/ansan_greeners_fc.svg"
+        },
+        {
+            "name": "김해 FC 2008",
+            "slug": "gimhae_fc_2008",
+            "emblemPath": "/assets/emblem/2026/kleague2/gimhae_fc_2008.svg"
+        },
+        {
+            "name": "파주 프런티어 FC",
+            "slug": "paju_frontier_fc",
+            "emblemPath": "/assets/emblem/2026/kleague2/paju_frontier_fc.svg"
+        },
+        {
+            "name": "용인 FC",
+            "slug": "yongin_fc",
+            "emblemPath": "/assets/emblem/2026/kleague2/yongin_fc.svg"
+        }
+    ]
+}

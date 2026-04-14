@@ -1,0 +1,56 @@
+# Dependency directories
+node_modules/
+/jspm_packages/
+
+# TypeScript
+lib-cov
+*.seed
+*.log
+*.csv
+*.dat
+*.out
+*.pid
+*.gz
+*.marko.js
+*.tsbuildinfo
+
+# Build outputs
+dist/
+build/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
+*.env.*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Project specific scratch files
+src/scripts/debug-*.ts
