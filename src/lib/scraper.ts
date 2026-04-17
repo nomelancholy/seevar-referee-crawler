@@ -49,76 +49,76 @@ async function getApiMatchId(match: MatchInfo): Promise<string | null> {
   return found?.id || null;
 }
 
-export async function getTodayMatches(): Promise<MatchInfo[]> {
+export async function getTodayMatches(targetDate?: string): Promise<MatchInfo[]> {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext();
   const page = await context.newPage();
 
   try {
-    console.log(`[${nowKST()}] Navigating to K-League schedule page...`);
-    await page.goto('https://www.kleague.com/schedule.do', { waitUntil: 'networkidle' });
-
-    const todayBtn = page.locator('button:has-text("TODAY")');
-    if (await todayBtn.isVisible()) {
-      await todayBtn.click();
-      await page.waitForLoadState('networkidle');
-    }
-
-    // KST 기준 오늘 날짜 계산 (서버 타임존이 KST로 설정된 경우)
+    // KST 기준 대상 날짜 설정 (서버 타임존이 KST로 설정된 경우)
     const nowKstDate = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
-    const todayStr = `${nowKstDate.getFullYear()}.${String(nowKstDate.getMonth() + 1).padStart(2, '0')}.${String(nowKstDate.getDate()).padStart(2, '0')}`;
+    const todayStr = targetDate || `${nowKstDate.getFullYear()}.${String(nowKstDate.getMonth() + 1).padStart(2, '0')}.${String(nowKstDate.getDate()).padStart(2, '0')}`;
     console.log(`[${nowKST()}] Checking matches for ${todayStr}...`);
 
-    const matches: MatchInfo[] = [];
+    const parts = todayStr.split('.');
+    const year = parts[0];
+    const month = parts[1];
     
-    // Find all rows in the schedule table
-    const rows = page.locator('table.table-schedule tbody tr');
-    const rowCount = await rows.count();
+    // session 쿠키 등을 위해 메인 페이지 한 번 접근을 권장하지만, API 호출은 불필요할 수도 있음.
+    // 혹시 모르니 빈 페이지에서 evaluate로 fetch 요청을 보냅니다.
+    await page.goto('https://www.kleague.com', { waitUntil: 'domcontentloaded' });
+    
+    const matches: MatchInfo[] = [];
 
-    let lastRoundNumber = 0;
-    let lastDateStr = '';
-
-    for (let i = 0; i < rowCount; i++) {
-      const row = rows.nth(i);
-      
-      const dateCell = row.locator('td.date');
-      if (await dateCell.isVisible()) {
-        const dateText = await dateCell.innerText();
-        // 날짜 파싱: "2026.04.15" 형태
-        const dateMatch = dateText.match(/(\d{4}\.\d{2}\.\d{2})/);
-        if (dateMatch) lastDateStr = dateMatch[1];
-        const roundMatch = dateText.match(/R(\d+)/);
-        if (roundMatch) lastRoundNumber = parseInt(roundMatch[1]);
-      }
-
-      // 오늘 날짜의 경기만 수집
-      if (lastDateStr !== todayStr) continue;
-
-      const matchCenterLink = row.locator('a:has-text("Match Center")');
-      if (await matchCenterLink.isVisible()) {
-        const href = await matchCenterLink.getAttribute('href');
-        const homeTeam = await row.locator('.team-home').innerText();
-        const awayTeam = await row.locator('.team-away').innerText();
-        const timeText = await row.locator('.time').innerText(); 
-
-        if (href) {
-          const urlParams = new URLSearchParams(href.split('?')[1]);
-          const timeParts = timeText.split(':').map(Number);
-          // KST 기준 경기 시작 시간 (로컬 타임이 KST)
-          const startTime = new Date(nowKstDate.getFullYear(), nowKstDate.getMonth(), nowKstDate.getDate(), timeParts[0], timeParts[1]);
-
-          matches.push({
-            year: urlParams.get('year') || '',
-            leagueId: urlParams.get('leagueId') || '',
-            gameId: urlParams.get('gameId') || '',
-            meetSeq: urlParams.get('meetSeq') || '',
-            roundNumber: lastRoundNumber,
-            homeTeamName: homeTeam.trim(),
-            awayTeamName: awayTeam.trim(),
-            startTime,
-          });
+    const scraped = await page.evaluate(async (reqData) => {
+      const out: any[] = [];
+      for (const leagueId of ['1', '2']) {
+        try {
+          const res = await fetch('/getScheduleList.do', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ year: reqData.year, month: reqData.month, leagueId })
+          }).then(r => r.json());
+          
+          if (res?.data?.scheduleList) {
+            for (const item of res.data.scheduleList) {
+              if (item.gameDate === reqData.todayStr) {
+                const [h, mi] = (item.gameTime || '').split(':').map((x: string) => parseInt(x, 10));
+                if (!Number.isNaN(h) && !Number.isNaN(mi)) {
+                  out.push({
+                    year: String(item.year),
+                    leagueId: String(item.leagueId),
+                    gameId: String(item.gameId),
+                    meetSeq: String(item.meetSeq),
+                    roundNumber: parseInt(item.roundId, 10),
+                    homeTeamName: item.homeTeamName,
+                    awayTeamName: item.awayTeamName,
+                    timeHour: h,
+                    timeMinute: mi,
+                  });
+                }
+              }
+            }
+          }
+        } catch (e) {
+          console.error(e);
         }
       }
+      return out;
+    }, { year, month, todayStr });
+
+    for (const row of scraped) {
+      const startTime = new Date(nowKstDate.getFullYear(), nowKstDate.getMonth(), nowKstDate.getDate(), row.timeHour, row.timeMinute);
+      matches.push({
+        year: row.year,
+        leagueId: row.leagueId,
+        gameId: row.gameId,
+        meetSeq: row.meetSeq,
+        roundNumber: row.roundNumber,
+        homeTeamName: row.homeTeamName,
+        awayTeamName: row.awayTeamName,
+        startTime,
+      });
     }
 
     console.log(`[${nowKST()}] Found ${matches.length} matches for ${todayStr}.`);

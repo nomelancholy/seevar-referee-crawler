@@ -7,6 +7,7 @@ module.exports = {
       watch: false,
       env: {
         NODE_ENV: 'production',
+        TZ: 'Asia/Seoul',
       },
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
       error_file: './logs/error.log',

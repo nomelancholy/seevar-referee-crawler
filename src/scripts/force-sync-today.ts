@@ -14,14 +14,15 @@ import { getTodayMatches, nowKST } from '../lib/scraper';
 import { syncRoundAndMatch } from '../lib/round-service';
 
 async function forceSyncToday() {
-  console.log(`[${nowKST()}] ===== 오늘 경기 강제 동기화 시작 =====`);
+  const targetDate = process.argv[2]; // e.g. "2026.04.18"
+  console.log(`[${nowKST()}] ===== ${targetDate ? targetDate : '오늘'} 경기 강제 동기화 시작 =====`);
 
   try {
-    console.log(`[${nowKST()}] K-League 스케줄 페이지 크롤링 중...`);
-    const matches = await getTodayMatches();
+    console.log(`[${nowKST()}] K-League 스케줄 데이타 조회 중...`);
+    const matches = await getTodayMatches(targetDate);
 
     if (matches.length === 0) {
-      console.log(`[${nowKST()}] ⚠️  오늘 경기가 없습니다. 크롤링 결과를 확인해주세요.`);
+      console.log(`[${nowKST()}] ⚠️  해당 날짜(${targetDate || '오늘'})에 경기가 없습니다.`);
       console.log('  → kleague.com/schedule.do 접속 후 TODAY 버튼 기준 날짜를 직접 확인하세요.');
       return;
     }
