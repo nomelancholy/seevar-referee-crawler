@@ -130,8 +130,7 @@ export async function getTodayMatches(targetDate?: string): Promise<MatchInfo[]>
         const res = await fetch('https://www.kleague.com/getScheduleList.do', {
           method: 'POST',
           headers: { 
-            'Content-Type': 'application/json',
-            'Accept-Language': 'ko-KR,ko;q=0.9'
+            'Content-Type': 'application/json'
           },
           body: JSON.stringify({ year, month, leagueId })
         });
@@ -177,8 +176,7 @@ export async function syncRefereeInfo(match: MatchInfo) {
     const res = await fetch('https://www.kleague.com/getScheduleList.do', {
       method: 'POST',
       headers: { 
-        'Content-Type': 'application/json',
-        'Accept-Language': 'ko-KR,ko;q=0.9'
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({ 
         year: match.year, 
@@ -254,8 +252,7 @@ export async function syncMatchResult(match: MatchInfo) {
     const matchInfoRes = await fetch('https://www.kleague.com/api/ddf/match/matchInfo.do', {
       method: 'POST',
       headers: { 
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Accept-Language': 'ko-KR,ko;q=0.9'
+        'Content-Type': 'application/x-www-form-urlencoded'
       },
       body: postBody.toString(),
     });
