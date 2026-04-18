@@ -24,6 +24,71 @@ export interface MatchInfo {
 }
 
 /**
+ * Standardize external API team names to match the database exactly.
+ */
+export function normalizeTeamName(name: string): string {
+  const norm = name.trim().toUpperCase();
+  const map: Record<string, string> = {
+    // English fallback
+    'SEOUL': 'FC 서울',
+    'FC SEOUL': 'FC 서울',
+    'JEONBUK': '전북 현대 모터스',
+    'JEJU': '제주 SK FC',
+    'INCHEON': '인천 유나이티드',
+    'DAEJEON HANA': '대전 하나 시티즌',
+    'DAEJEON': '대전 하나 시티즌',
+    'GANGWON': '강원 FC',
+    'BUCHEON': '부천 FC 1995',
+    'GIMCHEON': '김천 상무 FC',
+    'BUSAN': '부산 아이파크',
+    'GYEONGNAM': '경남 FC',
+    'SUWON': '수원 삼성 블루윙즈',
+    'DAEGU': '대구 FC',
+    'CHEONAN': '천안 시티 FC',
+    'GIMHAE': '김해 FC 2008',
+    'ULSAN': '울산 HD FC',
+    'POHANG': '포항 스틸러스',
+    'GWANGJU': '광주 FC',
+    'ANYANG': 'FC 안양',
+    'SEONGNAM': '성남 FC',
+    'GIMPO': '김포 FC',
+    'ANSAN': '안산 그리너스 FC',
+    'CHUNGBUK CHEONGJU': '충북 청주 FC',
+    'CHUNGNAM ASAN': '충남 아산 FC',
+    'ASAN': '충남 아산 FC',
+    
+    // Korean mapping to exact DB format
+    '서울': 'FC 서울',
+    '수원FC': '수원 FC',
+    'SUWON FC': '수원 FC',
+    '충북청주': '충북 청주 FC',
+    '김해': '김해 FC 2008',
+    '부천': '부천 FC 1995',
+    '전북': '전북 현대 모터스',
+    '제주': '제주 SK FC',
+    '인천': '인천 유나이티드',
+    '대전': '대전 하나 시티즌',
+    '강원': '강원 FC',
+    '김천': '김천 상무 FC',
+    '부산': '부산 아이파크',
+    '경남': '경남 FC',
+    '수원': '수원 삼성 블루윙즈',
+    '대구': '대구 FC',
+    '천안': '천안 시티 FC',
+    '울산': '울산 HD FC',
+    '포항': '포항 스틸러스',
+    '광주': '광주 FC',
+    '안양': 'FC 안양',
+    '성남': '성남 FC',
+    '김포': '김포 FC',
+    '안산': '안산 그리너스 FC',
+    '충남아산': '충남 아산 FC'
+  };
+
+  return map[norm] || map[name.trim()] || name.trim();
+}
+
+/**
  * Maps scraped leagueId to API league slug.
  */
 function mapLeagueIdToSlug(leagueId: string): string {
@@ -84,8 +149,8 @@ export async function getTodayMatches(targetDate?: string): Promise<MatchInfo[]>
                   gameId: String(item.gameId),
                   meetSeq: String(item.meetSeq),
                   roundNumber: parseInt(item.roundId, 10),
-                  homeTeamName: item.homeTeamName,
-                  awayTeamName: item.awayTeamName,
+                  homeTeamName: normalizeTeamName(item.homeTeamName),
+                  awayTeamName: normalizeTeamName(item.awayTeamName),
                   startTime,
                 });
               }
