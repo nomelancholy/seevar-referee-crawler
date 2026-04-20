@@ -43,6 +43,7 @@ export function normalizeTeamName(name: string): string {
     'BUSAN': '부산 아이파크',
     'GYEONGNAM': '경남 FC',
     'SUWON': '수원 삼성 블루윙즈',
+    'SUWON FC': '수원 FC',
     'DAEGU': '대구 FC',
     'CHEONAN': '천안 시티 FC',
     'GIMHAE': '김해 FC 2008',
@@ -56,12 +57,17 @@ export function normalizeTeamName(name: string): string {
     'CHUNGBUK CHEONGJU': '충북 청주 FC',
     'CHUNGNAM ASAN': '충남 아산 FC',
     'ASAN': '충남 아산 FC',
+    'SEOUL E-LAND': '서울 이랜드 FC',
+    'JEONNAM': '전남 드래곤즈',
+    'PAJU': '파주 프런티어 FC',
+    'HWASEONG': '화성 FC',
+    'YONGIN': '용인 FC',
     
     // Korean mapping to exact DB format
     '서울': 'FC 서울',
     '수원FC': '수원 FC',
-    'SUWON FC': '수원 FC',
     '충북청주': '충북 청주 FC',
+    '청주': '충북 청주 FC',
     '김해': '김해 FC 2008',
     '부천': '부천 FC 1995',
     '전북': '전북 현대 모터스',
@@ -73,6 +79,7 @@ export function normalizeTeamName(name: string): string {
     '부산': '부산 아이파크',
     '경남': '경남 FC',
     '수원': '수원 삼성 블루윙즈',
+    '수원삼성': '수원 삼성 블루윙즈',
     '대구': '대구 FC',
     '천안': '천안 시티 FC',
     '울산': '울산 HD FC',
@@ -82,7 +89,15 @@ export function normalizeTeamName(name: string): string {
     '성남': '성남 FC',
     '김포': '김포 FC',
     '안산': '안산 그리너스 FC',
-    '충남아산': '충남 아산 FC'
+    '충남아산': '충남 아산 FC',
+    '아산': '충남 아산 FC',
+    '서울E': '서울 이랜드 FC',
+    '서울 이랜드': '서울 이랜드 FC',
+    '서울이랜드': '서울 이랜드 FC',
+    '전남': '전남 드래곤즈',
+    '파주': '파주 프런티어 FC',
+    '화성': '화성 FC',
+    '용인': '용인 FC'
   };
 
   return map[norm] || map[name.trim()] || name.trim();
@@ -104,10 +119,16 @@ async function getApiMatchId(match: MatchInfo): Promise<string | null> {
   const leagueSlug = mapLeagueIdToSlug(match.leagueId);
   const scheduleRes = await api.getSchedule(year, leagueSlug);
   
-  const found = scheduleRes.matches.find(m => 
-    (m.homeTeamName.includes(match.homeTeamName) || match.homeTeamName.includes(m.homeTeamName)) && 
-    (m.awayTeamName.includes(match.awayTeamName) || match.awayTeamName.includes(m.awayTeamName))
+  let found = scheduleRes.matches.find(m => 
+    m.homeTeamName === match.homeTeamName && m.awayTeamName === match.awayTeamName
   );
+
+  if (!found) {
+    found = scheduleRes.matches.find(m => 
+      (m.homeTeamName.includes(match.homeTeamName) || match.homeTeamName.includes(m.homeTeamName)) && 
+      (m.awayTeamName.includes(match.awayTeamName) || match.awayTeamName.includes(m.awayTeamName))
+    );
+  }
   
   return found?.id || null;
 }

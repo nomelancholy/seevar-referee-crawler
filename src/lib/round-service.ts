@@ -39,10 +39,16 @@ export async function syncRoundAndMatch(match: MatchInfo) {
   // 3. Sync Match Schedule
   // Get all matches for this season/league to find the specific match
   const scheduleRes = await api.getSchedule(year, leagueSlug);
-  const dbMatch = scheduleRes.matches.find(m => 
-    (m.homeTeamName.includes(match.homeTeamName) || match.homeTeamName.includes(m.homeTeamName)) &&
-    (m.awayTeamName.includes(match.awayTeamName) || match.awayTeamName.includes(m.awayTeamName))
+  let dbMatch = scheduleRes.matches.find(m => 
+    m.homeTeamName === match.homeTeamName && m.awayTeamName === match.awayTeamName
   );
+
+  if (!dbMatch) {
+    dbMatch = scheduleRes.matches.find(m => 
+      (m.homeTeamName.includes(match.homeTeamName) || match.homeTeamName.includes(m.homeTeamName)) &&
+      (m.awayTeamName.includes(match.awayTeamName) || match.awayTeamName.includes(m.awayTeamName))
+    );
+  }
 
   const playedAtIso = match.startTime?.toISOString();
 
