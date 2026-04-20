@@ -237,6 +237,8 @@ export async function syncRefereeInfo(match: MatchInfo) {
         if (matchId) {
           await api.assignReferees(matchId, assignments);
           console.log(`[${nowKST()}] Successfully assigned ${assignments.length} referees to match ${matchId}`);
+        } else {
+          console.warn(`[${nowKST()}] Could not find match ID for referee sync: ${match.homeTeamName} vs ${match.awayTeamName}`);
         }
       } else {
         console.log(`[${nowKST()}] No referees found in schedule API for ${match.homeTeamName} vs ${match.awayTeamName}`);
