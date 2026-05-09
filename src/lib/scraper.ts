@@ -117,14 +117,27 @@ function mapLeagueIdToSlug(leagueId: string): string {
 async function getApiMatchId(match: MatchInfo): Promise<string | null> {
   const year = parseInt(match.year);
   const leagueSlug = mapLeagueIdToSlug(match.leagueId);
+  
+  // 1. Get League ID
+  const leaguesRes = await api.getLeagues(year);
+  const league = leaguesRes.leagues.find(l => l.slug === leagueSlug);
+  if (!league) return null;
+
+  // 2. Get Round ID
+  const roundsRes = await api.getRounds(league.id, match.roundNumber);
+  const round = roundsRes.rounds.find(r => r.number === match.roundNumber);
+  if (!round) return null;
+
   const scheduleRes = await api.getSchedule(year, leagueSlug);
   
   let found = scheduleRes.matches.find(m => 
+    m.roundId === round.id &&
     m.homeTeamName === match.homeTeamName && m.awayTeamName === match.awayTeamName
   );
 
   if (!found) {
     found = scheduleRes.matches.find(m => 
+      m.roundId === round.id &&
       (m.homeTeamName.includes(match.homeTeamName) || match.homeTeamName.includes(m.homeTeamName)) && 
       (m.awayTeamName.includes(match.awayTeamName) || match.awayTeamName.includes(m.awayTeamName))
     );

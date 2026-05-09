@@ -40,11 +40,13 @@ export async function syncRoundAndMatch(match: MatchInfo) {
   // Get all matches for this season/league to find the specific match
   const scheduleRes = await api.getSchedule(year, leagueSlug);
   let dbMatch = scheduleRes.matches.find(m => 
+    m.roundId === round.id &&
     m.homeTeamName === match.homeTeamName && m.awayTeamName === match.awayTeamName
   );
 
   if (!dbMatch) {
     dbMatch = scheduleRes.matches.find(m => 
+      m.roundId === round.id &&
       (m.homeTeamName.includes(match.homeTeamName) || match.homeTeamName.includes(m.homeTeamName)) &&
       (m.awayTeamName.includes(match.awayTeamName) || match.awayTeamName.includes(m.awayTeamName))
     );
