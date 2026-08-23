@@ -116,7 +116,11 @@ async function main() {
       }
 
       if (hasReferees) {
-        await syncRefereeInfo(match, { strict: true, matchId: resolved.matchId });
+        await syncRefereeInfo(match, {
+          strict: true,
+          matchId: resolved.matchId,
+          refreshSource: false,
+        });
       } else {
         console.warn(`[backfill:partial] Official referee data is empty; existing assignments preserved: ${label}`);
       }

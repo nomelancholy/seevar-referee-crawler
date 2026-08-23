@@ -4,10 +4,15 @@ import { findReversedScheduleMatch, findScheduleMatch } from './match-lookup';
 
 const monthlyScheduleCache = new Map<string, any[]>();
 
-async function getLeagueScheduleList(year: string, month: string, leagueId: string): Promise<any[]> {
+async function getLeagueScheduleList(
+  year: string,
+  month: string,
+  leagueId: string,
+  options: { forceRefresh?: boolean } = {}
+): Promise<any[]> {
   const key = `${year}-${month}-${leagueId}`;
   const cached = monthlyScheduleCache.get(key);
-  if (cached) return cached;
+  if (cached && !options.forceRefresh) return cached;
 
   const response = await fetch('https://www.kleague.com/getScheduleList.do', {
     method: 'POST',
@@ -50,6 +55,7 @@ export interface MatchInfo {
 export interface SyncOptions {
   strict?: boolean;
   matchId?: string;
+  refreshSource?: boolean;
 }
 
 /**
@@ -262,7 +268,11 @@ export async function syncRefereeInfo(
   try {
     const monthStr = getKstMonth(match.startTime ?? new Date());
     
-    const scheduleList = await getLeagueScheduleList(match.year, monthStr, match.leagueId);
+    const scheduleList = await getLeagueScheduleList(match.year, monthStr, match.leagueId, {
+      // Daily scheduling must see referee names published after the 02:22 schedule check.
+      // Season backfill can opt out because it processes immutable historical rows.
+      forceRefresh: options.refreshSource ?? true,
+    });
     const refereeData = scheduleList.find(
       (item: any) => String(item.gameId) === match.gameId && String(item.meetSeq) === match.meetSeq
     );
