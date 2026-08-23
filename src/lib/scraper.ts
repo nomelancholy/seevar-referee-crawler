@@ -1,5 +1,27 @@
 import { api } from './api-client';
 import { MatchStatus, RefereeRole } from './types';
+import { findScheduleMatch } from './match-lookup';
+
+const monthlyScheduleCache = new Map<string, any[]>();
+
+async function getLeagueScheduleList(year: string, month: string, leagueId: string): Promise<any[]> {
+  const key = `${year}-${month}-${leagueId}`;
+  const cached = monthlyScheduleCache.get(key);
+  if (cached) return cached;
+
+  const response = await fetch('https://www.kleague.com/getScheduleList.do', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ year, month, leagueId }),
+  });
+  if (!response.ok) {
+    throw new Error(`K League schedule request failed: ${response.status} ${response.statusText}`);
+  }
+  const data = (await response.json()) as any;
+  const list = Array.isArray(data?.data?.scheduleList) ? data.data.scheduleList : [];
+  monthlyScheduleCache.set(key, list);
+  return list;
+}
 
 /**
  * Returns a KST-formatted timestamp string for logging.
@@ -18,9 +40,43 @@ export interface MatchInfo {
   gameId: string;
   meetSeq: string;
   roundNumber: number;
+  gameStatus?: string;
+  sourceRefereeCount?: number;
   startTime?: Date;
   homeTeamName: string;
   awayTeamName: string;
+}
+
+export interface SyncOptions {
+  strict?: boolean;
+  matchId?: string;
+}
+
+/**
+ * Parses a K League date/time pair as an absolute KST timestamp.
+ * This intentionally does not depend on the crawler host's timezone or today's date.
+ */
+export function parseKstMatchStartTime(gameDate: string, gameTime: string): Date | null {
+  const dateMatch = /^(\d{4})\.(\d{2})\.(\d{2})$/.exec(gameDate);
+  const timeMatch = /^(\d{1,2}):(\d{2})$/.exec(gameTime);
+  if (!dateMatch || !timeMatch) return null;
+
+  const [, year, month, day] = dateMatch;
+  const hour = Number(timeMatch[1]);
+  const minute = Number(timeMatch[2]);
+  if (hour > 23 || minute > 59) return null;
+
+  const parsed = new Date(
+    `${year}-${month}-${day}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00+09:00`
+  );
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function getKstMonth(date: Date): string {
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Seoul',
+    month: '2-digit',
+  }).format(date);
 }
 
 /**
@@ -114,39 +170,23 @@ function mapLeagueIdToSlug(leagueId: string): string {
 /**
  * Helper to find match ID from API based on scraped info.
  */
-async function getApiMatchId(match: MatchInfo): Promise<string | null> {
+export async function getApiMatchId(match: MatchInfo): Promise<string | null> {
   const year = parseInt(match.year);
   const leagueSlug = mapLeagueIdToSlug(match.leagueId);
-  
-  // 1. Get League ID
-  const leaguesRes = await api.getLeagues(year);
-  const league = leaguesRes.leagues.find(l => l.slug === leagueSlug);
-  if (!league) return null;
-
-  // 2. Get Round ID
-  const roundsRes = await api.getRounds(league.id, match.roundNumber);
-  const round = roundsRes.rounds.find(r => r.number === match.roundNumber);
-  if (!round) return null;
-
   const scheduleRes = await api.getSchedule(year, leagueSlug);
-  
-  let found = scheduleRes.matches.find(m => 
-    m.roundId === round.id &&
-    m.homeTeamName === match.homeTeamName && m.awayTeamName === match.awayTeamName
-  );
-
-  if (!found) {
-    found = scheduleRes.matches.find(m => 
-      m.roundId === round.id &&
-      (m.homeTeamName.includes(match.homeTeamName) || match.homeTeamName.includes(m.homeTeamName)) && 
-      (m.awayTeamName.includes(match.awayTeamName) || match.awayTeamName.includes(m.awayTeamName))
-    );
-  }
+  const found = findScheduleMatch(scheduleRes.matches, {
+    roundNumber: match.roundNumber,
+    homeTeamName: match.homeTeamName,
+    awayTeamName: match.awayTeamName,
+  });
   
   return found?.id || null;
 }
 
-export async function getTodayMatches(targetDate?: string): Promise<MatchInfo[]> {
+export async function getTodayMatches(
+  targetDate?: string,
+  options: { strict?: boolean } = {}
+): Promise<MatchInfo[]> {
   try {
     // KST 기준 대상 날짜 설정 (서버 타임존이 KST로 설정된 경우)
     const nowKstDate = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
@@ -161,27 +201,28 @@ export async function getTodayMatches(targetDate?: string): Promise<MatchInfo[]>
 
     for (const leagueId of ['1', '2']) {
       try {
-        const res = await fetch('https://www.kleague.com/getScheduleList.do', {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ year, month, leagueId })
-        });
-        const data = (await res.json()) as any;
-        
-        if (data?.data?.scheduleList) {
-          for (const item of data.data.scheduleList) {
+        const scheduleList = await getLeagueScheduleList(year, month, leagueId);
+
+        if (scheduleList.length > 0) {
+          for (const item of scheduleList) {
             if (item.gameDate === todayStr) {
-              const [h, mi] = (item.gameTime || '').split(':').map((x: string) => parseInt(x, 10));
-              if (!Number.isNaN(h) && !Number.isNaN(mi)) {
-                const startTime = new Date(nowKstDate.getFullYear(), nowKstDate.getMonth(), nowKstDate.getDate(), h, mi);
+              const startTime = parseKstMatchStartTime(todayStr, String(item.gameTime || ''));
+              if (startTime) {
                 matches.push({
                   year: String(item.year),
                   leagueId: String(item.leagueId),
                   gameId: String(item.gameId),
                   meetSeq: String(item.meetSeq),
                   roundNumber: parseInt(item.roundId, 10),
+                  gameStatus: String(item.gameStatus || ''),
+                  sourceRefereeCount: [
+                    'refreeName1',
+                    'refreeName2',
+                    'refreeName3',
+                    'refreeName4',
+                    'refreeName7',
+                    'refreeName8',
+                  ].filter((key) => typeof item[key] === 'string' && item[key].trim()).length,
                   homeTeamName: normalizeTeamName(item.homeTeamName),
                   awayTeamName: normalizeTeamName(item.awayTeamName),
                   startTime,
@@ -191,6 +232,7 @@ export async function getTodayMatches(targetDate?: string): Promise<MatchInfo[]>
           }
         }
       } catch (e) {
+        if (options.strict) throw e;
         console.error(e);
       }
     }
@@ -198,32 +240,23 @@ export async function getTodayMatches(targetDate?: string): Promise<MatchInfo[]>
     console.log(`[${nowKST()}] Found ${matches.length} matches for ${todayStr}.`);
     return matches;
   } catch (err) {
+    if (options.strict) throw err;
     console.error(`[${nowKST()}] getTodayMatches error:`, err);
     return [];
   }
 }
 
-export async function syncRefereeInfo(match: MatchInfo) {
+export async function syncRefereeInfo(
+  match: MatchInfo,
+  options: SyncOptions = {}
+): Promise<boolean> {
   try {
-    const monthStr = String(match.startTime?.getMonth() !== undefined ? match.startTime.getMonth() + 1 : new Date().getMonth() + 1).padStart(2, '0');
+    const monthStr = getKstMonth(match.startTime ?? new Date());
     
-    const res = await fetch('https://www.kleague.com/getScheduleList.do', {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ 
-        year: match.year, 
-        month: monthStr, 
-        leagueId: match.leagueId 
-      })
-    });
-    const data = (await res.json()) as any;
-    
-    let refereeData: any = null;
-    if (data?.data?.scheduleList) {
-      refereeData = data.data.scheduleList.find((item: any) => String(item.gameId) === match.gameId && String(item.meetSeq) === match.meetSeq);
-    }
+    const scheduleList = await getLeagueScheduleList(match.year, monthStr, match.leagueId);
+    const refereeData = scheduleList.find(
+      (item: any) => String(item.gameId) === match.gameId && String(item.meetSeq) === match.meetSeq
+    );
     
     if (refereeData) {
       console.log(`[${nowKST()}] Referee data for ${match.homeTeamName} vs ${match.awayTeamName} fetched.`);
@@ -246,21 +279,25 @@ export async function syncRefereeInfo(match: MatchInfo) {
       }
 
       if (assignments.length > 0) {
-        const matchId = await getApiMatchId(match);
+        const matchId = options.matchId ?? await getApiMatchId(match);
         if (matchId) {
           await api.assignReferees(matchId, assignments);
           console.log(`[${nowKST()}] Successfully assigned ${assignments.length} referees to match ${matchId}`);
+          return true;
         } else {
-          console.warn(`[${nowKST()}] Could not find match ID for referee sync: ${match.homeTeamName} vs ${match.awayTeamName}`);
+          throw new Error(`Could not find match ID for referee sync: ${match.homeTeamName} vs ${match.awayTeamName}`);
         }
       } else {
         console.log(`[${nowKST()}] No referees found in schedule API for ${match.homeTeamName} vs ${match.awayTeamName}`);
       }
     } else {
-      console.log(`[${nowKST()}] Match ${match.gameId} not found in schedule data.`);
+      throw new Error(`Match ${match.gameId} not found in schedule data.`);
     }
+    return false;
   } catch (error) {
+    if (options.strict) throw error;
     console.error(`[${nowKST()}] syncRefereeInfo error:`, error);
+    return false;
   }
 }
 
@@ -275,7 +312,10 @@ async function ensureReferee(name: string): Promise<string | null> {
   return registerRes.referee.id;
 }
 
-export async function syncMatchResult(match: MatchInfo) {
+export async function syncMatchResult(
+  match: MatchInfo,
+  options: SyncOptions = {}
+): Promise<boolean> {
   try {
     console.log(`[${nowKST()}] Fetching match result API directly...`);
     const postBody = new URLSearchParams({
@@ -293,6 +333,9 @@ export async function syncMatchResult(match: MatchInfo) {
       body: postBody.toString(),
     });
     
+    if (!matchInfoRes.ok) {
+      throw new Error(`K League match info request failed: ${matchInfoRes.status} ${matchInfoRes.statusText}`);
+    }
     const matchInfoData = (await matchInfoRes.json()) as any;
     
     const gameStatus: string = matchInfoData?.data?.gameStatus ?? '';
@@ -328,7 +371,7 @@ export async function syncMatchResult(match: MatchInfo) {
     const apiStatus = isFinished ? MatchStatus.FINISHED : isLive ? MatchStatus.LIVE : MatchStatus.SCHEDULED;
     console.log(`[${nowKST()}] Match status: "${gameStatus}" → ${apiStatus}`);
 
-    const matchId = await getApiMatchId(match);
+    const matchId = options.matchId ?? await getApiMatchId(match);
     if (matchId) {
       await api.updateMatchResult(matchId, { scoreHome: homeScore, scoreAway: awayScore });
       await api.updateMatchStatus(matchId, apiStatus);
@@ -340,10 +383,13 @@ export async function syncMatchResult(match: MatchInfo) {
         awayRedCards: awayRed,
       });
       console.log(`[${nowKST()}] Successfully synced result and cards for match ${matchId}`);
+      return true;
     } else {
-      console.warn(`[${nowKST()}] Could not find match ID for result sync: ${match.homeTeamName} vs ${match.awayTeamName}`);
+      throw new Error(`Could not find match ID for result sync: ${match.homeTeamName} vs ${match.awayTeamName}`);
     }
   } catch (error) {
+    if (options.strict) throw error;
     console.error(`[${nowKST()}] syncMatchResult error:`, error);
+    return false;
   }
 }

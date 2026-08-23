@@ -1,5 +1,11 @@
 import { api } from './api-client';
 import { MatchInfo } from './scraper';
+import { findScheduleMatch } from './match-lookup';
+
+export interface SyncRoundAndMatchOptions {
+  allowCreate?: boolean;
+  updateFocus?: boolean;
+}
 
 /**
  * Maps scraped leagueId to API league slug.
@@ -9,7 +15,12 @@ function mapLeagueIdToSlug(leagueId: string): string {
   return leagueId === '1' ? 'k-league-1' : 'k-league-2';
 }
 
-export async function syncRoundAndMatch(match: MatchInfo) {
+export async function syncRoundAndMatch(
+  match: MatchInfo,
+  options: SyncRoundAndMatchOptions = {}
+): Promise<{ matchId: string | null }> {
+  const allowCreate = options.allowCreate ?? true;
+  const updateFocus = options.updateFocus ?? true;
   const year = parseInt(match.year);
   const leagueSlug = mapLeagueIdToSlug(match.leagueId);
 
@@ -19,7 +30,7 @@ export async function syncRoundAndMatch(match: MatchInfo) {
   
   if (!league) {
     console.error(`League not found for year ${year} and slug ${leagueSlug}`);
-    return;
+    return { matchId: null };
   }
 
   // 2. Find/Create Round
@@ -27,6 +38,10 @@ export async function syncRoundAndMatch(match: MatchInfo) {
   let round = roundsRes.rounds.find(r => r.number === match.roundNumber);
 
   if (!round) {
+    if (!allowCreate) {
+      console.warn(`Round ${match.roundNumber} not found; creation disabled.`);
+      return { matchId: null };
+    }
     console.log(`Creating new round: Round ${match.roundNumber} for league ${league.slug}`);
     const createRoundRes = await api.createRound({
       leagueId: league.id,
@@ -39,18 +54,12 @@ export async function syncRoundAndMatch(match: MatchInfo) {
   // 3. Sync Match Schedule
   // Get all matches for this season/league to find the specific match
   const scheduleRes = await api.getSchedule(year, leagueSlug);
-  let dbMatch = scheduleRes.matches.find(m => 
-    m.roundId === round.id &&
-    m.homeTeamName === match.homeTeamName && m.awayTeamName === match.awayTeamName
-  );
-
-  if (!dbMatch) {
-    dbMatch = scheduleRes.matches.find(m => 
-      m.roundId === round.id &&
-      (m.homeTeamName.includes(match.homeTeamName) || match.homeTeamName.includes(m.homeTeamName)) &&
-      (m.awayTeamName.includes(match.awayTeamName) || match.awayTeamName.includes(m.awayTeamName))
-    );
-  }
+  let dbMatch = findScheduleMatch(scheduleRes.matches, {
+    roundId: round.id,
+    roundNumber: match.roundNumber,
+    homeTeamName: match.homeTeamName,
+    awayTeamName: match.awayTeamName,
+  });
 
   const playedAtIso = match.startTime?.toISOString();
 
@@ -61,6 +70,12 @@ export async function syncRoundAndMatch(match: MatchInfo) {
       await api.updateMatchSchedule(dbMatch.id, { playedAt: playedAtIso });
     }
   } else {
+    if (!allowCreate) {
+      console.warn(
+        `Match not found in round ${match.roundNumber}; creation disabled: ${match.homeTeamName} vs ${match.awayTeamName}`
+      );
+      return { matchId: null };
+    }
     // Create new match
     console.log(`Match not found. Creating new match: ${match.homeTeamName} vs ${match.awayTeamName} in Round ${match.roundNumber}`);
     
@@ -73,23 +88,26 @@ export async function syncRoundAndMatch(match: MatchInfo) {
 
     if (!homeTeam || !awayTeam) {
       console.error(`Failed to find team IDs: Home(${match.homeTeamName}): ${homeTeam?.id}, Away(${match.awayTeamName}): ${awayTeam?.id}`);
-      return;
+      return { matchId: null };
     }
 
     if (playedAtIso) {
-      await api.createMatch({
+      const created = await api.createMatch({
         roundId: round.id,
         homeTeamId: homeTeam.id,
         awayTeamId: awayTeam.id,
         playedAt: playedAtIso,
         // venue: match.venue // MatchInfo doesn't have venue yet, but we could add if needed
       });
+      dbMatch = created.match;
     }
   }
 
   // 4. Handle isFocus logic
-  if (!round.isFocus) {
+  if (updateFocus && !round.isFocus) {
     console.log(`Setting Round ${match.roundNumber} as focused round for ${league.slug}`);
     await api.setFocusRound(round.id);
   }
+
+  return { matchId: dbMatch?.id ?? null };
 }

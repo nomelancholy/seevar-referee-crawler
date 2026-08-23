@@ -422,3 +422,22 @@ npm run test:match
 ```
 
 `test-single-match.ts`는 `syncRoundAndMatch` + `syncRefereeInfo` + `syncMatchResult`를 순서대로 모두 실행합니다.
+
+---
+
+## 7단계 — 시즌 데이터 안전 복구
+
+같은 홈·원정 매치업이 여러 라운드에 존재할 때 과거 경기로 잘못 동기화된 경우 사용합니다.
+복구는 `연도 + 리그 + 라운드 번호 + 홈팀 + 원정팀`으로 기존 경기만 찾으며, 경기나 라운드를 새로 만들지 않습니다.
+
+사용자 평점·한줄평(`RefereeReview`), 댓글, 모멘트, 반응은 수정하지 않습니다. 공식 경기 일시·점수·상태·카드·심판 배정만 동기화합니다.
+
+```bash
+# 1. 대상 경기와 See VAR 경기 ID 확인(데이터 변경 없음)
+npm run backfill -- --from=2026-02-28 --to=2026-08-22
+
+# 2. 출력 마지막이 skipped=0인지 확인한 뒤에만 실제 반영
+npm run backfill -- --from=2026-02-28 --to=2026-08-22 --apply
+```
+
+`--apply`가 없으면 항상 드라이런입니다. K리그 원본 목록만 확인하려면 `--source-only`를 추가합니다.

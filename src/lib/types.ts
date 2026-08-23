@@ -37,6 +37,7 @@ export interface Team {
 
 export interface Match {
   id: string;
+  roundNumber: number;
   year: number;
   leagueSlug: string;
   homeTeamName: string;
