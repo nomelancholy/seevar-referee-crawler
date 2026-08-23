@@ -1,6 +1,6 @@
 import { api } from './api-client';
 import { MatchInfo } from './scraper';
-import { findScheduleMatch } from './match-lookup';
+import { findReversedScheduleMatch, findScheduleMatch } from './match-lookup';
 
 export interface SyncRoundAndMatchOptions {
   allowCreate?: boolean;
@@ -60,6 +60,34 @@ export async function syncRoundAndMatch(
     homeTeamName: match.homeTeamName,
     awayTeamName: match.awayTeamName,
   });
+
+  if (!dbMatch) {
+    const reversed = findReversedScheduleMatch(scheduleRes.matches, {
+      roundId: round.id,
+      roundNumber: match.roundNumber,
+      homeTeamName: match.homeTeamName,
+      awayTeamName: match.awayTeamName,
+    });
+    if (reversed) {
+      const [homeTeamRes, awayTeamRes] = await Promise.all([
+        api.searchTeam(match.homeTeamName),
+        api.searchTeam(match.awayTeamName),
+      ]);
+      const homeTeam = homeTeamRes.teams[0];
+      const awayTeam = awayTeamRes.teams[0];
+      if (!homeTeam || !awayTeam) {
+        console.error(`Failed to find team IDs for reversal repair: ${match.homeTeamName} vs ${match.awayTeamName}`);
+        return { matchId: null };
+      }
+
+      console.log(`Correcting reversed matchup in round ${match.roundNumber}: ${reversed.homeTeamName} vs ${reversed.awayTeamName} -> ${match.homeTeamName} vs ${match.awayTeamName}`);
+      const updated = await api.updateMatchTeams(reversed.id, {
+        homeTeamId: homeTeam.id,
+        awayTeamId: awayTeam.id,
+      });
+      dbMatch = updated.match;
+    }
+  }
 
   const playedAtIso = match.startTime?.toISOString();
 

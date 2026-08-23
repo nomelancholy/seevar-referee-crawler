@@ -79,6 +79,13 @@ export const api = {
     });
   },
 
+  updateMatchTeams: async (matchId: string, data: { homeTeamId: string; awayTeamId: string }) => {
+    return request<{ ok: boolean; match: Match }>(`/api/matches/${matchId}/teams`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+
   updateMatchStatus: async (matchId: string, status: MatchStatus) => {
     return request<{ ok: boolean; match: Match }>(`/api/matches/${matchId}/status`, {
       method: 'PATCH',

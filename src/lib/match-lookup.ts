@@ -50,3 +50,15 @@ export function findScheduleMatch(
 
   return null;
 }
+
+/** Returns a same-round row whose home and away teams are reversed. */
+export function findReversedScheduleMatch(
+  matches: Match[],
+  target: MatchLookupTarget
+): Match | null {
+  return findScheduleMatch(matches, {
+    ...target,
+    homeTeamName: target.awayTeamName,
+    awayTeamName: target.homeTeamName,
+  });
+}

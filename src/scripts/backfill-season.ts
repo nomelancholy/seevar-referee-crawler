@@ -1,5 +1,5 @@
 import {
-  getApiMatchId,
+  getApiMatchResolution,
   getTodayMatches,
   syncMatchResult,
   syncRefereeInfo,
@@ -69,6 +69,7 @@ async function main() {
   let skipped = 0;
   let ignored = 0;
   let missingReferees = 0;
+  let teamSwaps = 0;
 
   for (const date of datesBetween(options.from, options.to)) {
     const matches = await getTodayMatches(toCrawlerDate(date), { strict: true });
@@ -89,14 +90,17 @@ async function main() {
           console.log(`[backfill:source] referees=${match.sourceRefereeCount ?? 0} ${label}`);
           continue;
         }
-        const matchId = await getApiMatchId(match);
-        if (!matchId) {
+        const resolution = await getApiMatchResolution(match);
+        if (!resolution.matchId) {
           skipped += 1;
           console.warn(`[backfill:missing] ${label}`);
           continue;
         }
         ready += 1;
-        console.log(`[backfill:ready] ${matchId} ${label}`);
+        if (resolution.needsTeamSwap) teamSwaps += 1;
+        console.log(
+          `[backfill:${resolution.needsTeamSwap ? 'repair' : 'ready'}] ${resolution.matchId} ${label}`
+        );
         continue;
       }
 
@@ -123,7 +127,7 @@ async function main() {
   }
 
   console.log(
-    `[backfill] discovered=${discovered} ready=${ready} synced=${synced} skipped=${skipped} ignored=${ignored} missingReferees=${missingReferees}`
+    `[backfill] discovered=${discovered} ready=${ready} synced=${synced} skipped=${skipped} ignored=${ignored} missingReferees=${missingReferees} teamSwaps=${teamSwaps}`
   );
   if (!options.apply) {
     console.log(

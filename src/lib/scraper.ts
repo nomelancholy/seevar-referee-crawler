@@ -1,6 +1,6 @@
 import { api } from './api-client';
 import { MatchStatus, RefereeRole } from './types';
-import { findScheduleMatch } from './match-lookup';
+import { findReversedScheduleMatch, findScheduleMatch } from './match-lookup';
 
 const monthlyScheduleCache = new Map<string, any[]>();
 
@@ -170,17 +170,26 @@ function mapLeagueIdToSlug(leagueId: string): string {
 /**
  * Helper to find match ID from API based on scraped info.
  */
-export async function getApiMatchId(match: MatchInfo): Promise<string | null> {
+export async function getApiMatchResolution(
+  match: MatchInfo
+): Promise<{ matchId: string | null; needsTeamSwap: boolean }> {
   const year = parseInt(match.year);
   const leagueSlug = mapLeagueIdToSlug(match.leagueId);
   const scheduleRes = await api.getSchedule(year, leagueSlug);
-  const found = findScheduleMatch(scheduleRes.matches, {
+  const target = {
     roundNumber: match.roundNumber,
     homeTeamName: match.homeTeamName,
     awayTeamName: match.awayTeamName,
-  });
-  
-  return found?.id || null;
+  };
+  const found = findScheduleMatch(scheduleRes.matches, target);
+  if (found) return { matchId: found.id, needsTeamSwap: false };
+
+  const reversed = findReversedScheduleMatch(scheduleRes.matches, target);
+  return { matchId: reversed?.id ?? null, needsTeamSwap: Boolean(reversed) };
+}
+
+export async function getApiMatchId(match: MatchInfo): Promise<string | null> {
+  return (await getApiMatchResolution(match)).matchId;
 }
 
 export async function getTodayMatches(

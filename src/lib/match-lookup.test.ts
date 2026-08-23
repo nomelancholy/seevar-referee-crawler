@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { findScheduleMatch } from './match-lookup';
+import { findReversedScheduleMatch, findScheduleMatch } from './match-lookup';
 import { parseKstMatchStartTime } from './scraper';
 import { Match, MatchStatus } from './types';
 
@@ -72,4 +72,20 @@ test('parses a historical KST match time without using today\'s date', () => {
 test('rejects malformed or impossible source times', () => {
   assert.equal(parseKstMatchStartTime('2026-03-15', '14:30'), null);
   assert.equal(parseKstMatchStartTime('2026.03.15', '25:00'), null);
+});
+
+test('detects a reversed matchup only in the requested round', () => {
+  const matches = [
+    match('round-12-reversed', 12, '수원 FC', '충남 아산 FC'),
+    match('round-30-direct', 30, '충남 아산 FC', '수원 FC'),
+  ];
+
+  assert.equal(
+    findReversedScheduleMatch(matches, {
+      roundNumber: 12,
+      homeTeamName: '충남 아산 FC',
+      awayTeamName: '수원 FC',
+    })?.id,
+    'round-12-reversed'
+  );
 });
