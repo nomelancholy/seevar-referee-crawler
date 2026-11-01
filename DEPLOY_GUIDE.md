@@ -17,11 +17,13 @@
 [DigitalOcean Droplet]
   PM2 → src/main.ts (상시실행)
         │
-        ├─ 매일 02:22 cron → 오늘 경기 목록 크롤링
+        ├─ 매일 02:22 cron → 오늘 경기 목록 확인, 라운드 포커스·일정 동기화
         │
-        ├─ 경기 시작 70분 전 → 심판 배정 동기화
+        ├─ 매분 cron → 경기 시간대에만 K리그 조회
+        │     ├─ 킥오프 2시간 30분 전부터 5분마다 심판 명단 확인 → 나오면 바로 반영
+        │     └─ 킥오프부터 2분마다 점수/카드/상태 확인 → 바뀐 값만 반영, 종료되면 멈춤
         │
-        └─ 경기 시작 127분 후 → 점수/카드/상태 동기화
+        └─ 매일 23:20 cron → 오늘 경기 보정 (놓친 값 다시 반영)
                 │
                 ▼
         [seevar API: https://seevar.online/api/...]
@@ -206,29 +208,32 @@ git push origin main
 
 ## 3단계 — 스케줄 동작 방식 이해
 
-`src/main.ts`의 실행 흐름입니다.
+`src/main.ts`가 cron을 걸고, 실제 판단은 `src/lib/poller.ts`가 경기마다 합니다. 모든 cron은 서버 타임존과 상관없이 KST 기준입니다.
 
 ```
-PM2 시작 (또는 서버 재부팅)
-  └─ dailyTask() 즉시 1회 실행 (당일 놓친 경기 대응)
-  └─ cron '22 2 * * *' → 매일 새벽 02:22 KST에 dailyTask() 실행
+PM2 시작 (또는 서버 재부팅·배포)
+  └─ loadToday() 즉시 1회 → 오늘 경기를 다시 추적, 이미 시작한 경기는 reconcileToday()로 바로 맞춤
 
-dailyTask()
-  ├─ kleague.com/schedule.do 크롤링 → 오늘 경기 목록 수집
+cron '22 2 * * *' → loadToday()
+  ├─ getScheduleList.do (K리그1·2) → 오늘 경기 목록
+  └─ 경기별 syncRoundAndMatch() → 라운드 포커스 + 경기 일정 동기화
+     (목록 조회가 실패하면 10분 뒤 다시 시도)
+
+cron '* * * * *' → pollTick()   할 일이 있는 경기가 없으면 요청 0건
+  ├─ 심판 명단: 킥오프 150분 전 ~ 킥오프
+  │     getScheduleList.do 의 refreeName1~8 확인 (같은 리그 경기는 요청 하나를 같이 씀)
+  │     명단이 나올 때까지 5분 간격 → 나오면 /referees 반영 → 킥오프까지 15분 간격으로 교체 확인
+  │     킥오프까지 안 나오면 킥오프 후 30분까지 계속 확인
+  │     당일 킥오프 시각이 바뀌면 seevar 일정도 고침
   │
-  └─ 경기별 처리:
-      ├─ syncRoundAndMatch()  → 라운드 포커스 + 경기 일정 DB 동기화
-      │
-      ├─ [경기 시작 70분 전] setTimeout → syncRefereeInfo()
-      │     kleague.com/match.do (startTabNum=3) 접속
-      │     심판 배정 정보 파싱 → /api/matches/{id}/referees 업데이트
-      │
-      └─ [경기 시작 127분 후] setTimeout → syncMatchResult()
-            kleague.com/match.do (startTabNum=1) 접속
-            내부 AJAX API 호출:
-              - /api/ddf/match/matchInfo.do → 점수(homeGoal, awayGoal), 상태(gameStatus)
-              - /api/ddf/match/matchRecord.do → 카드(yellowCards, redCards)
-            → /api/matches/{id}/result, /cards, /status 업데이트
+  └─ 경기 진행: 킥오프 ~ 종료(FE) 또는 킥오프 후 4시간
+        경기마다 matchInfo.do 2분 간격 → 점수(/result)·상태(/status)·카드(/cards) 중 바뀐 것만 반영
+        카드는 주심 배정이 없으면 실패하므로 10분 뒤 다시 시도
+
+cron '20 23 * * *' → reconcileToday()
+  └─ 오늘 경기의 심판·점수·상태·카드를 앞서 보낸 값과 상관없이 다시 반영 (누락 보정)
+
+K리그 요청이 실패(오류 응답·타임아웃 15초)하면 2 → 4 → 8 → 15분 쉬었다가 이어서 확인합니다.
 ```
 
 ### gameStatus 값 매핑
@@ -236,9 +241,17 @@ dailyTask()
 | kleague gameStatus | seevar MatchStatus |
 |---|---|
 | `FE` | `FINISHED` (경기종료) |
-| `SH` | `LIVE` (후반진행중) |
-| `FH` | `LIVE` (전반진행중) |
-| `BF` 또는 기타 | `SCHEDULED` |
+| `FH`, `SH` | `LIVE` (전반·후반 진행중) |
+| 그 밖의 값 (하프타임·연장 등) | `LIVE` (처음 보는 값은 로그에 남김) |
+| 빈 값 | 변경 안 함 (아직 시작 전) |
+
+### 폴링 간격 바꾸기
+
+`src/lib/poller.ts` 상단 상수(`REFEREE_LEAD_MIN`, `REFEREE_POLL_MIN`, `LIVE_POLL_MIN` 등)를 고치면 됩니다. 경기 하나당 K리그 요청은 하루 70건 안팎입니다 (심판 확인은 같은 리그 경기끼리 공유).
+
+### 로컬에서 모의 K리그 서버로 확인
+
+`KLEAGUE_BASE_URL`을 지정하면 K리그 대신 그 주소로 요청합니다 (기본값 `https://www.kleague.com`). `API_BASE_URL`도 로컬 seevar로 지정해 운영 서버에 쓰지 않게 하세요.
 
 ---
 

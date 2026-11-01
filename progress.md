@@ -34,3 +34,4 @@
 - 2026-04-10: Integrated Gemini 2.0 Flash vision-based fallback for dynamic content.
 - 2026-04-10: Configured PM2 orchestration and cron scheduling.
 - 2026-04-10: Completed implementation and provided walkthrough.
+- 2026-10-25: Replaced one-shot timers (referees at kickoff −40m, results at 23:20) with per-minute polling in `src/lib/poller.ts`: referees from kickoff −150m every 5m, live score/status/cards every 2m until `FE`, 23:20 kept as a reconcile pass. K League requests back off on failure.

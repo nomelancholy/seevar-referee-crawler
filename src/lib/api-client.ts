@@ -5,6 +5,8 @@ dotenv.config();
 
 const API_BASE_URL = process.env.API_BASE_URL?.replace(/\/$/, '') || 'http://localhost:3000';
 const CRAWLER_API_KEY = process.env.CRAWLER_API_KEY;
+// 응답이 없을 때 폴링 전체가 멈추지 않도록 끊는다
+const REQUEST_TIMEOUT_MS = 20_000;
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const url = `${API_BASE_URL}${path}`;
@@ -14,7 +16,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     ...options.headers,
   };
 
-  const response = await fetch(url, { ...options, headers });
+  const response = await fetch(url, { ...options, headers, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
 
   if (!response.ok) {
     const errorText = await response.text();
